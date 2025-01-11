@@ -1,0 +1,152 @@
+/*
+This code is designed for Alzheimer's patients and works alongside a 7x1 pill organizer. 
+It uses an ESP32 microcontroller to simulate a WiFi hotspot and host a website for interaction. 
+Alternatively, any other microcontroller (e.g., Arduino) can be used to achieve similar functionality.
+
+The system employs 7 TCRT5000 IR sensors to detect whether a pill is present in the organizer compartments.
+A 16x2 LCD provides enhanced interaction by displaying the current day and the status of whether the patient has taken their pill.
+Additionally, a buzzer is included to remind the patient to take their pill.
+
+Key features:
+- ESP32 microcontroller for WiFi and website hosting
+- 7 IR sensors for pill detection
+- 16x2 LCD for user interaction
+- Buzzer for auditory reminders
+*/
+
+#include <LiquidCrystal.h>
+#include <WiFi.h>
+
+// Create an LCD Object. Signals: [ RS, EN, D4, D5, D6, D7 ]
+LiquidCrystal My_LCD(13, 12, 14, 27, 26, 25);
+
+// WiFi credentials for Access Point
+const char *ssid = "PillReminder"; // Name of the WiFi network
+const char *password = "12345678"; // Password for the WiFi network
+
+// Day sensors
+const int DaySensorPin[] = {23, 22, 21, 19, 18, 5, 4}; // Sensors for each day
+
+// Variables for the current day and pill status
+const char *daysOfWeek[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+String pillMessage = "Take the pill!";
+
+const int buzzerPin = 15;
+
+// Day and status variables
+int currentDayIndex = 0; // Index for the current day
+bool pillDetected = false; // True if the pill is present (not taken)
+
+// Timer variables
+unsigned long lastDayStartTime = 0;
+const unsigned long dailyDuration = 5000; // 1 minute for testing (24 hours = 86400000 ms)
+unsigned long lastCheckTime = 0;
+const unsigned long checkInterval = 50; // 5 seconds for sensor checks
+
+// Web server on port 80
+WiFiServer server(80);
+
+void setup() {
+    // Initialize serial communication
+    Serial.begin(115200);
+
+    // Initialize day sensors
+    for (int i = 0; i < 7; i++) {
+        pinMode(DaySensorPin[i], INPUT);
+    }
+
+    // Initialize the LCD
+    My_LCD.begin(16, 2);
+    My_LCD.clear();
+    
+    pinMode(buzzerPin, OUTPUT);
+    digitalWrite(buzzerPin, LOW);
+
+    // Display initial message
+    My_LCD.print("Pill Reminder");
+    My_LCD.setCursor(0, 1);
+    My_LCD.print("System Starting");
+    delay(2000);
+    My_LCD.clear();
+
+    // Set up Access Point
+    WiFi.softAP(ssid, password);
+    Serial.println("Access Point started");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.softAPIP());
+
+    // Start the web server
+    server.begin();
+    Serial.println("Web server started");
+}
+
+void loop() {
+    // Day transition logic
+    if (millis() - lastDayStartTime >= dailyDuration) {
+        lastDayStartTime = millis();
+
+        // Move to the next day
+        currentDayIndex = (currentDayIndex + 1) % 7;
+    }
+
+    // Check pill status periodically for the current day
+    if (millis() - lastCheckTime >= checkInterval) {
+        lastCheckTime = millis();
+
+        int sensorValue = digitalRead(DaySensorPin[currentDayIndex]);
+        pillDetected = (sensorValue == LOW);
+        pillMessage = pillDetected ? "Take the pill!" : "You're fine!";
+
+        // Update the LCD display
+        My_LCD.clear();
+        My_LCD.setCursor(0, 0);
+        My_LCD.print("Day: ");
+        My_LCD.print(daysOfWeek[currentDayIndex]);
+        My_LCD.setCursor(0, 1);
+        My_LCD.print(pillMessage);
+    }
+        if (pillDetected) {
+            digitalWrite(buzzerPin, HIGH);
+        } else {
+            digitalWrite(buzzerPin, LOW);
+        }
+    // Handle web client
+    WiFiClient client = server.available();
+    if (client) {
+        Serial.println("Client connected");
+        String request = client.readStringUntil('\r');
+        Serial.println(request);
+        client.flush();
+
+        // Send the HTML response
+        String response = buildHTMLResponse();
+        client.print(response);
+
+        client.print("<script>setTimeout(function(){location.reload();}, 1000);</script>");
+
+        // Close the connection
+        client.stop();
+        Serial.println("Client disconnected");
+    }
+
+    delay(50); // Stabilization delay
+}
+
+// Function to build the HTML response for the web server
+String buildHTMLResponse() {
+    String html = "HTTP/1.1 200 OK\r\n";
+    html += "Content-Type: text/html\r\n";
+    html += "Connection: close\r\n"; // Close the connection after the response
+    html += "Cache-Control: no-cache, no-store, must-revalidate\r\n"; // Prevent browser caching
+    html += "Pragma: no-cache\r\n";
+    html += "Expires: 0\r\n";
+    html += "\r\n"; // End of headers
+    html += "<!DOCTYPE html><html>";
+    html += "<head><title>Pill Reminder</title></head>";
+    html += "<body>";
+    html += "<h1>Pill Reminder System</h1>";
+    html += "<p><strong>Day: </strong>" + String(daysOfWeek[currentDayIndex]) + "</p>";
+    html += "<p><strong>Status: </strong>" + pillMessage + "</p>";
+    html += "</body></html>";
+    return html;
+}
