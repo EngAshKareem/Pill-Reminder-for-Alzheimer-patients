@@ -1,32 +1,32 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
+# Compiled object files
 *.o
-*.obj
 
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
+# Arduino IDE build output
+*.elf
+*.bin
+*.hex
+*.map
 *.out
-*.app
+
+# Temporary files created by the Arduino IDE
+*.ino.*
+*.arduino.*
+
+# Libraries downloaded by Arduino Library Manager
+libraries/
+
+# Operating system generated files
+.DS_Store
+Thumbs.db
+
+# Backup and temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Log files
+*.log
+
+# Miscellaneous
+__pycache__/
